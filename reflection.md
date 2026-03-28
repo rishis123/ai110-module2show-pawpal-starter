@@ -108,7 +108,37 @@ The Pet has associated tasks which can be added to. The scheduler has the abilit
 **b. Design changes**
 
 - Did your design change during implementation?
+
 - If yes, describe at least one change and why you made it.
+
+
+Issues from Claude:
+
+Missing Relationships
+
+Task has no back-reference to Pet — User.complete_task(task) needs to find and remove the task from a specific pet's list, but there's no task.pet to navigate to. You'd have to loop through all pets to find it.
+
+Scheduler can't apply species-specific rules — your design notes mention species-based scheduling, but Scheduler only sees User → flat list[Task]. It has no path to task → pet → species.
+
+Logic Bottlenecks
+
+Duplicate "complete" responsibility — both Task.mark_complete() and User.complete_task(task) exist. It's unclear who owns this. User.complete_task presumably calls task.mark_complete(), but then what does it do differently? If it also removes the task from Pet.tasks, you need the back-reference from point 1.
+
+Scheduler.scheduled_tasks can drift out of sync with Pet.tasks — tasks live in two places. If a task is added to a pet after scheduling, or a pet's task is removed, the scheduler's list won't know.
+
+start_time/end_time as str — scheduling arithmetic (e.g., assigning sequential time slots in schedule_tasks) requires parsing strings like "7:00 AM" repeatedly. This is error-prone; consider storing as datetime.time internally.
+
+No task identity — Task has no id field. If a user has two pets each with a "Morning walk" task, reschedule(task, new_time) has no reliable way to distinguish them
+
+Issues Fix
+No task → pet link	Add pet: Pet = None attribute to Task.__init__, set it in Pet.add_task
+Scheduler can't see species	Pass tasks with their pet context, or let schedule_tasks receive list[Pet] instead
+Duplicate complete logic	Have User.complete_task call task.mark_complete() and then remove from the correct pet's list via task.pet
+No task identity	Add id: int (e.g., using a class-level counter) to Task
+The Task → Pet back-reference is the most load-bearing fix — it unblocks both the complete logic and the species-aware scheduling.
+
+
+I agreed with Claude on the changes, and let it make the necessary steps. 
 
 ---
 
