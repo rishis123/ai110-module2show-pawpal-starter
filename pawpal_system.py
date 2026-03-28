@@ -1,4 +1,6 @@
-from datetime import time
+from datetime import time, datetime, timedelta
+
+PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 
 class User:
@@ -8,18 +10,26 @@ class User:
         self.pets: list = []
 
     def sign_up(self):
-        pass
+        """Create a new user account and print a confirmation message."""
+        print(f"Account created for {self.name} ({self.email}).")
 
     def log_in(self):
-        pass
+        """Log in the user and print a welcome message."""
+        print(f"Welcome back, {self.name}!")
 
     def add_pet(self, pet):
-        pass
+        """Add a pet to the user's list of pets."""
+        self.pets.append(pet)
 
     def get_tasks(self) -> list:
-        pass
+        """Return all tasks across every pet owned by this user."""
+        all_tasks = []
+        for pet in self.pets:
+            all_tasks.extend(pet.tasks)
+        return all_tasks
 
     def complete_task(self, task):
+        """Mark a task complete and remove it from its pet's task list."""
         task.mark_complete()
         if task.pet is not None:
             task.pet.tasks.remove(task)
@@ -33,11 +43,14 @@ class Pet:
         self.tasks: list = []
 
     def add_task(self, task):
+        """Link a task to this pet and append it to the pet's task list."""
         task.pet = self
         self.tasks.append(task)
 
     def get_pending_tasks(self) -> list:
-        pass
+        """Return incomplete tasks for this pet, sorted by priority."""
+        pending = [t for t in self.tasks if not t.completed]
+        return sorted(pending, key=lambda t: PRIORITY_ORDER.get(t.priority, 3))
 
 
 class Task:
@@ -54,6 +67,7 @@ class Task:
         self.pet = None  # back-reference set by Pet.add_task
 
     def mark_complete(self):
+        """Mark this task as completed."""
         self.completed = True
 
 
@@ -65,13 +79,40 @@ class Scheduler:
         self.scheduled_tasks: list = []
 
     def schedule_tasks(self, pets: list) -> list:
-        pass
+        """Assign time slots to all pending tasks across the given pets."""
+        all_pending = []
+        for pet in pets:
+            all_pending.extend(pet.get_pending_tasks())
+
+        # Sort globally by priority so high-priority tasks get the earliest slots.
+        all_pending.sort(key=lambda t: PRIORITY_ORDER.get(t.priority, 3))
+
+        today = datetime.today().date()
+        current = datetime.combine(today, self.start_time)
+        end = datetime.combine(today, self.end_time)
+
+        self.scheduled_tasks = []
+        for task in all_pending:
+            slot_end = current + timedelta(minutes=task.duration_minutes)
+            if slot_end > end:
+                break  # no room left in the day
+            task.scheduled_time = current.time()
+            self.scheduled_tasks.append(task)
+            current = slot_end
+
+        return self.scheduled_tasks
 
     def get_daily_schedule(self) -> list:
-        pass
+        """Return scheduled tasks ordered by their start time."""
+        return sorted(self.scheduled_tasks, key=lambda t: t.scheduled_time)
 
     def reschedule(self, task, new_time: time):
-        pass
+        """Update a scheduled task's start time if it exists in the schedule."""
+        if task in self.scheduled_tasks:
+            task.scheduled_time = new_time
 
     def clear_schedule(self):
-        pass
+        """Remove all scheduled tasks and clear their assigned times."""
+        for task in self.scheduled_tasks:
+            task.scheduled_time = None
+        self.scheduled_tasks = []
