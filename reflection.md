@@ -73,27 +73,34 @@ classDiagram
     }
 
     class Task {
+        +id: int
         +title: str
         +duration_minutes: int
         +priority: str
+        +frequency: str
         +completed: bool
-        +scheduled_time: str
+        +scheduled_time: time
+        +pet: Pet
         +mark_complete()
     }
 
     class Scheduler {
         +user: User
-        +start_time: str
-        +end_time: str
+        +start_time: time
+        +end_time: time
         +scheduled_tasks: list~Task~
-        +schedule_tasks(tasks: list~Task~)$ list~Task~
+        +schedule_tasks(pets: list~Pet~) list~Task~
+        +sort_by_time() list~Task~
+        +filter_tasks(pet_name, completed) list~Task~
+        +detect_conflicts() list~str~
         +get_daily_schedule() list~Task~
-        +reschedule(task: Task, new_time: str)
+        +reschedule(task: Task, new_time: time)
         +clear_schedule()
     }
 
     User "1" --o "0..*" Pet : owns
     Pet "1" --o "0..*" Task : has
+    Task "0..*" --> "0..1" Pet : back-ref
     Scheduler "1" --> "1" User : schedules for
     Scheduler "1" --> "0..*" Task : manages
 ```
@@ -229,3 +236,14 @@ The UI could be cleaner.
 - What is one important thing you learned about designing systems or working with AI on this project?
 
 I think having the UML diagram made code generation more clear and structured.
+
+# ADDED Questions
+
+Which Claude features were most effective for building your scheduler?
+- Building and editing files directly off UML diagrams.
+
+Give one example of an AI suggestion you rejected or modified to keep your system design clean.
+- I mentioned the pets change above. 
+
+How did using separate chat sessions for different phases help you stay organized?
+- I didn't do this, but this might've helped.
