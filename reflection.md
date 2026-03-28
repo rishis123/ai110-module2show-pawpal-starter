@@ -149,10 +149,16 @@ I agreed with Claude on the changes, and let it make the necessary steps.
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 - How did you decide which constraints mattered most?
 
+The scheduler considers two hard constraints: the owner's available time window (`start_time` to `end_time`) and each task's `duration_minutes`. Tasks that don't fit in the remaining window are dropped. Within those constraints, tasks are ranked by a soft constraint — `priority` ("high", "medium", "low") — using a lookup dict (`PRIORITY_ORDER`) so higher-priority tasks always claim earlier slots.
+
+Priority was chosen as the primary ordering factor because a pet care context has genuinely urgent tasks (medication, feeding) that must happen before optional ones (playtime). Time-window enforcement is the secondary hard stop because scheduling past the owner's availability produces an unrealistic plan.
+
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+
+The conflict detector only compares adjacent tasks after sorting by start time, not every possible pair. This means it catches all sequential overlaps in the generated schedule but would miss a long task that spans the start time of a non-adjacent shorter task. This tradeoff is reasonable here because `schedule_tasks` assigns slots sequentially — it never intentionally places two tasks at the same time — so real conflicts only arise when a task is manually rescheduled via `reschedule()`. In that narrow case, checking neighbors is sufficient and keeps the method O(n) instead of O(n²).
 
 ---
 
@@ -163,10 +169,16 @@ I agreed with Claude on the changes, and let it make the necessary steps.
 - How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
 - What kinds of prompts or questions were most helpful?
 
+AI was used across every phase: initial UML critique (identifying missing back-references and duplicate logic), implementation of class skeletons, adding docstrings, wiring the Streamlit UI to the backend classes, and extending the scheduler with sorting, filtering, recurring tasks, and conflict detection.
+
+The most useful prompt style was describing the *goal behavior* rather than asking for code directly — for example, "when a daily task is marked complete, a new instance should auto-create for tomorrow" produced a focused implementation in `mark_complete()`. Asking "why would there be a pet in session state if an owner has multiple pets?" also surfaced a design flaw before any code was written.
+
 **b. Judgment and verification**
 
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
+
+Initially, the AI was trying to add a pet to the state, instead of the ability to add multiple pets. This didn't make sense, so I prompted and it used the add_pets logic.
 
 ---
 
@@ -177,10 +189,24 @@ I agreed with Claude on the changes, and let it make the necessary steps.
 - What behaviors did you test?
 - Why were these tests important?
 
+Two unit tests were written in `tests/test_pawpal.py`:
+
+1. **Task completion** — calls `mark_complete()` and asserts `task.completed` flips from `False` to `True`. This matters because the scheduler's `filter_tasks(completed=False)` and `get_pending_tasks()` both depend on this flag being set correctly; a silent failure here would cause completed tasks to keep appearing in the schedule.
+
+2. **Task addition** — adds a task to a `Pet` and asserts `len(pet.tasks)` increases by 1. This matters because `Pet.add_task` also sets the `task.pet` back-reference; verifying the count confirms the task was actually appended and not just linked in isolation.
+
 **b. Confidence**
 
 - How confident are you that your scheduler works correctly?
 - What edge cases would you test next if you had more time?
+
+The core scheduling path (priority sort → sequential slot assignment → time-window cutoff) is well-covered by the `main.py` demo output. Confidence is moderate for the happy path but lower for edge cases.
+
+Edge cases to test next:
+- A task whose `duration_minutes` alone exceeds the full day window (should be skipped, not crash).
+- Two pets with tasks totaling exactly the available minutes (boundary condition for the `slot_end > end` check).
+- A recurring task marked complete when `task.pet` is `None` (the guard exists but is untested).
+- `filter_tasks` called with both `pet_name` and `completed` simultaneously to confirm the filters compose correctly.
 
 ---
 
@@ -190,10 +216,16 @@ I agreed with Claude on the changes, and let it make the necessary steps.
 
 - What part of this project are you most satisfied with?
 
+I think the scheduler is pretty thorough.
+
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
 
+The UI could be cleaner. 
+ 
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+
+I think having the UML diagram made code generation more clear and structured.

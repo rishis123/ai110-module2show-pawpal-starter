@@ -56,19 +56,26 @@ class Pet:
 class Task:
     _id_counter = 0
 
-    def __init__(self, title: str, duration_minutes: int, priority: str):
+    def __init__(self, title: str, duration_minutes: int, priority: str,
+                 frequency: str = "once"):
         Task._id_counter += 1
         self.id = Task._id_counter
         self.title = title
         self.duration_minutes = duration_minutes
         self.priority = priority
+        self.frequency = frequency          # "once" | "daily" | "weekly"
         self.completed: bool = False
         self.scheduled_time: time | None = None
         self.pet = None  # back-reference set by Pet.add_task
 
     def mark_complete(self):
-        """Mark this task as completed."""
+        """Mark this task complete and auto-schedule the next occurrence for recurring tasks."""
         self.completed = True
+        if self.frequency in ("daily", "weekly") and self.pet is not None:
+            days_ahead = 1 if self.frequency == "daily" else 7
+            next_task = Task(self.title, self.duration_minutes, self.priority, self.frequency)
+            next_task.due_date = datetime.today().date() + timedelta(days=days_ahead)
+            self.pet.add_task(next_task)
 
 
 class Scheduler:
@@ -102,9 +109,38 @@ class Scheduler:
 
         return self.scheduled_tasks
 
+    def sort_by_time(self) -> list:
+        """Return scheduled tasks sorted by their scheduled_time, earliest first."""
+        return sorted(self.scheduled_tasks, key=lambda t: t.scheduled_time)
+
+    def filter_tasks(self, pet_name: str = None, completed: bool = None) -> list:
+        """Return tasks matching an optional pet name and/or completion status filter."""
+        result = self.scheduled_tasks
+        if pet_name is not None:
+            result = [t for t in result if t.pet and t.pet.name == pet_name]
+        if completed is not None:
+            result = [t for t in result if t.completed == completed]
+        return result
+
+    def detect_conflicts(self) -> list[str]:
+        """Return warning strings for any tasks whose time windows overlap."""
+        warnings = []
+        tasks = self.sort_by_time()
+        today = datetime.today().date()
+        for i in range(len(tasks) - 1):
+            a, b = tasks[i], tasks[i + 1]
+            a_end = datetime.combine(today, a.scheduled_time) + timedelta(minutes=a.duration_minutes)
+            b_start = datetime.combine(today, b.scheduled_time)
+            if a_end > b_start:
+                warnings.append(
+                    f"CONFLICT: '{a.title}' overlaps '{b.title}' "
+                    f"(ends {a_end.time()}, next starts {b.scheduled_time})"
+                )
+        return warnings
+
     def get_daily_schedule(self) -> list:
         """Return scheduled tasks ordered by their start time."""
-        return sorted(self.scheduled_tasks, key=lambda t: t.scheduled_time)
+        return self.sort_by_time()
 
     def reschedule(self, task, new_time: time):
         """Update a scheduled task's start time if it exists in the schedule."""
